@@ -23,6 +23,8 @@ echo "Configuring Solr"
 cp ${TEST_ROOT}/solrconfig.xml solr/collection1/conf/solrconfig.xml
 cp ${TEST_ROOT}/schema.xml solr/collection1/conf/schema.xml
 
+perl -p -i -e 's|log4j.rootLogger=INFO|log4j.rootLogger=WARN|' resources/log4j.properties
+
 # Fix paths for the content extraction handler:
 perl -p -i -e 's|<lib dir="../../../contrib/|<lib dir="../../contrib/|'g solr/*/conf/solrconfig.xml
 perl -p -i -e 's|<lib dir="../../../dist/|<lib dir="../../dist/|'g solr/*/conf/solrconfig.xml
