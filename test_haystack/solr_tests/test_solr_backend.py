@@ -370,16 +370,10 @@ class SolrSearchBackendTestCase(TestCase):
         self.assertEqual(self.sb.search('*:*', limit_to_registered_models=False)['hits'], 3)
         self.assertEqual([result.pk for result in self.sb.search('*:*', limit_to_registered_models=False)['results']], ['1', '2', '3'])
 
-        # Stow.
-        old_limit_to_registered_models = getattr(settings, 'HAYSTACK_LIMIT_TO_REGISTERED_MODELS', True)
-        settings.HAYSTACK_LIMIT_TO_REGISTERED_MODELS = False
-
-        self.assertEqual(self.sb.search(''), {'hits': 0, 'results': []})
-        self.assertEqual(self.sb.search('*:*')['hits'], 3)
-        self.assertEqual([result.pk for result in self.sb.search('*:*')['results']], ['1', '2', '3'])
-
-        # Restore.
-        settings.HAYSTACK_LIMIT_TO_REGISTERED_MODELS = old_limit_to_registered_models
+        with patch.object(settings, 'HAYSTACK_LIMIT_TO_REGISTERED_MODELS', new=False):
+            self.assertEqual(self.sb.search(''), {'hits': 0, 'results': []})
+            self.assertEqual(self.sb.search('*:*')['hits'], 3)
+            self.assertEqual([result.pk for result in self.sb.search('*:*')['results']], ['1', '2', '3'])
 
     def test_altparser_query(self):
         self.sb.update(self.smmi, self.sample_objs)

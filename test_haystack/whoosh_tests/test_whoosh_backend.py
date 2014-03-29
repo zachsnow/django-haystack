@@ -7,17 +7,19 @@ from django.conf import settings
 from django.test import TestCase
 from django.utils import unittest
 from django.utils.datetime_safe import date, datetime
+from mock import patch
 from whoosh.fields import BOOLEAN, DATETIME, KEYWORD, NUMERIC, TEXT
 from whoosh.qparser import QueryParser
 
-from ..core.models import AFourthMockModel, AnotherMockModel, MockModel
-from ..mocks import MockSearchResult
 from haystack import connections, indexes, reset_search_queries
 from haystack.exceptions import SearchBackendError
 from haystack.inputs import AutoQuery
 from haystack.models import SearchResult
 from haystack.query import SearchQuerySet, SQ
 from haystack.utils.loading import UnifiedIndex
+
+from ..core.models import AFourthMockModel, AnotherMockModel, MockModel
+from ..mocks import MockSearchResult
 
 
 class WhooshMockSearchIndex(indexes.SearchIndex, indexes.Indexable):
@@ -260,16 +262,11 @@ class WhooshSearchBackendTestCase(TestCase):
         self.assertEqual(self.sb.search(u'*', limit_to_registered_models=False)['hits'], 23)
         self.assertEqual([result.pk for result in self.sb.search(u'*', limit_to_registered_models=False)['results']], [u'%s' % i for i in range(1, 24)])
 
-        # Stow.
-        old_limit_to_registered_models = getattr(settings, 'HAYSTACK_LIMIT_TO_REGISTERED_MODELS', True)
-        settings.HAYSTACK_LIMIT_TO_REGISTERED_MODELS = False
-
-        self.assertEqual(self.sb.search(u''), {'hits': 0, 'results': []})
-        self.assertEqual(self.sb.search(u'*')['hits'], 23)
-        self.assertEqual([result.pk for result in self.sb.search(u'*')['results']], [u'%s' % i for i in range(1, 24)])
-
-        # Restore.
-        settings.HAYSTACK_LIMIT_TO_REGISTERED_MODELS = old_limit_to_registered_models
+        with patch.object(settings, 'HAYSTACK_LIMIT_TO_REGISTERED_MODELS', new=False, create=True):
+            self.assertEqual(self.sb.search(u''), {'hits': 0, 'results': []})
+            self.assertEqual(self.sb.search(u'*')['hits'], 23)
+            self.assertEqual([result.pk for result in self.sb.search(u'*')['results']],
+                             [u'%s' % i for i in range(1, 24)])
 
     def test_search_all_models(self):
         wamsi = WhooshAnotherMockSearchIndex()

@@ -1,22 +1,23 @@
 # -*- coding: utf-8 -*-
 import datetime
-from decimal import Decimal
 import logging as std_logging
 import operator
+from decimal import Decimal
 
 import elasticsearch
 from django.conf import settings
 from django.test import TestCase
 from django.utils import unittest
-from haystack import connections, reset_search_queries
-from haystack import indexes
+from mock import patch
+
+from haystack import connections, indexes, reset_search_queries
 from haystack.inputs import AutoQuery
 from haystack.models import SearchResult
-from haystack.query import SearchQuerySet, RelatedSearchQuerySet, SQ
+from haystack.query import RelatedSearchQuerySet, SearchQuerySet, SQ
 from haystack.utils import log as logging
 from haystack.utils.loading import UnifiedIndex
-from ..core.models import (MockModel, AnotherMockModel,
-                         AFourthMockModel, ASixthMockModel)
+
+from ..core.models import AFourthMockModel, AnotherMockModel, ASixthMockModel, MockModel
 from ..mocks import MockSearchResult
 
 test_pickling = True
@@ -418,16 +419,11 @@ class ElasticsearchSearchBackendTestCase(TestCase):
         self.assertEqual(self.sb.search('*:*', limit_to_registered_models=False)['hits'], 3)
         self.assertEqual(sorted([result.pk for result in self.sb.search('*:*', limit_to_registered_models=False)['results']]), ['1', '2', '3'])
 
-        # Stow.
-        old_limit_to_registered_models = getattr(settings, 'HAYSTACK_LIMIT_TO_REGISTERED_MODELS', True)
-        settings.HAYSTACK_LIMIT_TO_REGISTERED_MODELS = False
-
-        self.assertEqual(self.sb.search(''), {'hits': 0, 'results': []})
-        self.assertEqual(self.sb.search('*:*')['hits'], 3)
-        self.assertEqual(sorted([result.pk for result in self.sb.search('*:*')['results']]), ['1', '2', '3'])
-
-        # Restore.
-        settings.HAYSTACK_LIMIT_TO_REGISTERED_MODELS = old_limit_to_registered_models
+        with patch.object(settings, 'HAYSTACK_LIMIT_TO_REGISTERED_MODELS', new=False, create=True):
+            self.assertEqual(self.sb.search(''), {'hits': 0, 'results': []})
+            self.assertEqual(self.sb.search('*:*')['hits'], 3)
+            self.assertEqual(sorted([result.pk for result in self.sb.search('*:*')['results']]),
+                             ['1', '2', '3'])
 
     def test_more_like_this(self):
         self.sb.update(self.smmi, self.sample_objs)

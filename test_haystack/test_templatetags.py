@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-from django.template import Template, Context
+from django.template import Context, Template
 from django.test import TestCase
+from mock import patch
+
 from haystack.utils import Highlighter
 
 
@@ -75,11 +77,8 @@ the attribute of the object to populate that field with.
         context = {}
         self.assertEqual(self.render(template, context), u'...<span class="highlighted">foo</span> b...')
 
+    @patch.object(settings, 'HAYSTACK_CUSTOM_HIGHLIGHTER', new='not.here.FooHighlighter', create=True)
     def test_custom(self):
-        # Stow.
-        old_custom_highlighter = getattr(settings, 'HAYSTACK_CUSTOM_HIGHLIGHTER', None)
-        settings.HAYSTACK_CUSTOM_HIGHLIGHTER = 'not.here.FooHighlighter'
-
         template = """{% load highlight %}{% highlight entry with query %}"""
         context = {
             'entry': self.sample_entry,
@@ -95,6 +94,3 @@ the attribute of the object to populate that field with.
             'query': 'index',
         }
         self.assertEqual(self.render(template, context), u'Bork!ing behavior for your model you can specify your own SearchIndex class.\nThis is useful for ensuring that future-dated or non-live content is not Bork!ed\nand searchable.\n\nEvery custom SearchIndex ')
-
-        # Restore.
-        settings.HAYSTACK_CUSTOM_HIGHLIGHTER = None
