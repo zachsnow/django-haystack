@@ -370,7 +370,7 @@ class SolrSearchBackendTestCase(TestCase):
         self.assertEqual(self.sb.search('*:*', limit_to_registered_models=False)['hits'], 3)
         self.assertEqual([result.pk for result in self.sb.search('*:*', limit_to_registered_models=False)['results']], ['1', '2', '3'])
 
-        with patch.object(settings, 'HAYSTACK_LIMIT_TO_REGISTERED_MODELS', new=False):
+        with patch.object(settings, 'HAYSTACK_LIMIT_TO_REGISTERED_MODELS', new=False, create=True):
             self.assertEqual(self.sb.search(''), {'hits': 0, 'results': []})
             self.assertEqual(self.sb.search('*:*')['hits'], 3)
             self.assertEqual([result.pk for result in self.sb.search('*:*')['results']], ['1', '2', '3'])
