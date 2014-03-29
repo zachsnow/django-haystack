@@ -1,19 +1,20 @@
-from __future__ import print_function
-from __future__ import unicode_literals
+from __future__ import print_function, unicode_literals
+
+import time
 from threading import Thread
-from django.core.urlresolvers import reverse
-from django.conf import settings
+
 from django import forms
+from django.core.urlresolvers import reverse
 from django.http import HttpRequest, QueryDict
 from django.test import TestCase
 from django.utils.six.moves import queue
-from haystack import connections, connection_router
-from haystack.forms import model_choices, SearchForm, ModelSearchForm, FacetedSearchForm
-from haystack import indexes
+from test_haystack.core.models import AnotherMockModel, MockModel
+
+from haystack import connections, indexes
+from haystack.forms import FacetedSearchForm, ModelSearchForm, SearchForm
 from haystack.query import EmptySearchQuerySet
 from haystack.utils.loading import UnifiedIndex
-from haystack.views import SearchView, FacetedSearchView, search_view_factory
-from test_haystack.core.models import MockModel, AnotherMockModel
+from haystack.views import FacetedSearchView, search_view_factory, SearchView
 
 
 class InitialedSearchForm(SearchForm):
@@ -95,9 +96,9 @@ class SearchViewTestCase(TestCase):
         exceptions = []
 
         def threaded_view(resp_queue, view, request):
-            import time; time.sleep(2)
+            time.sleep(2)
             try:
-                inst = view(request)
+                view(request)
                 resp_queue.put(request.GET['name'])
             except Exception as e:
                 exceptions.append(e)
@@ -128,21 +129,11 @@ class SearchViewTestCase(TestCase):
         self.assertNotEqual(foo, bar)
 
     def test_spelling(self):
-        # Stow.
-        from django.conf import settings
-        old = settings.HAYSTACK_CONNECTIONS['default'].get('INCLUDE_SPELLING', None)
-
         sv = SearchView()
         sv.query = 'Nothing'
         sv.results = []
         sv.build_page = lambda: (None, None)
-        output = sv.create_response()
-
-        # Restore
-        settings.HAYSTACK_CONNECTIONS['default']['INCLUDE_SPELLING'] = old
-
-        if old is None:
-            del settings.HAYSTACK_CONNECTIONS['default']['INCLUDE_SPELLING']
+        sv.create_response()
 
 
 class ResultsPerPageTestCase(TestCase):
