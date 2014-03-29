@@ -15,6 +15,7 @@ Primary Authors:
     * Stefan Wehrmeyer (stefanw)
     * George Hickman (ghickman)
     * Ben Spaulding (benspaulding)
+    * Honza Kral (HonzaKral)
 
 
 Thanks to
@@ -69,7 +70,6 @@ Thanks to
         * A significant portion of the geospatial feature.
         * A significant portion of the input types feature.
     * Aram Dulyan (Aramgutang) for fixing the included admin class to be Django 1.4 compatible.
-    * Honza Kral (HonzaKral) for various Elasticsearch tweaks & testing.
     * Alex Vidal (avidal) for a patch allowing developers to override the queryset used for update operations.
     * Igor Támara (ikks) for a patch related to Unicode ``verbose_name_plural``.
     * Dan Helfman (witten) for a patch related to highlighting.
