@@ -757,8 +757,10 @@ class LiveSolrSearchQuerySetTestCase(TestCase):
 
     def test_load_all(self):
         sqs = self.sqs.load_all()
-        self.assertTrue(isinstance(sqs, SearchQuerySet))
         self.assertTrue(len(sqs) > 0)
+        # load_all should not change the results or their ordering:
+        self.assertListEqual([i.id for i in sqs], [i.id for i in self.sqs])
+        self.assertTrue(isinstance(sqs, SearchQuerySet))
         self.maxDiff = None
         self.assertEqual(sqs[0].object.foo, u"Registering indexes in Haystack is very similar to registering models and ``ModelAdmin`` classes in the `Django admin site`_.  If you want to override the default indexing behavior for your model you can specify your own ``SearchIndex`` class.  This is useful for ensuring that future-dated or non-live content is not indexed and searchable. Our ``Note`` model has a ``pub_date`` field, so let's update our code to include our own ``SearchIndex`` to exclude indexing future-dated notes:")
 
@@ -906,12 +908,21 @@ class LiveSolrSearchQuerySetTestCase(TestCase):
 
     def test_related_load_all(self):
         sqs = self.rsqs.load_all()
+
+        # load_all should not change the results or their ordering:
+        self.assertListEqual([i.id for i in sqs], [i.id for i in self.rsqs])
+
         self.assertTrue(isinstance(sqs, SearchQuerySet))
         self.assertTrue(len(sqs) > 0)
+
         self.assertEqual(sqs[0].object.foo, u"Registering indexes in Haystack is very similar to registering models and ``ModelAdmin`` classes in the `Django admin site`_.  If you want to override the default indexing behavior for your model you can specify your own ``SearchIndex`` class.  This is useful for ensuring that future-dated or non-live content is not indexed and searchable. Our ``Note`` model has a ``pub_date`` field, so let's update our code to include our own ``SearchIndex`` to exclude indexing future-dated notes:")
 
     def test_related_load_all_queryset(self):
         sqs = self.rsqs.load_all()
+
+        # load_all should not change the results or their ordering:
+        self.assertListEqual([i.id for i in sqs], [i.id for i in self.rsqs])
+
         self.assertEqual(len(sqs._load_all_querysets), 0)
 
         sqs = sqs.load_all_queryset(MockModel, MockModel.objects.filter(id__gt=1))
