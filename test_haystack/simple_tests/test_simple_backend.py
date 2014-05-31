@@ -1,14 +1,16 @@
 # coding: utf-8
 from datetime import date
+
 from django.conf import settings
 from django.test import TestCase
-from haystack import connections, connection_router
-from haystack import indexes
+from django.test.utils import override_settings
+from haystack import connection_router, connections, indexes
 from haystack.query import SearchQuerySet
 from haystack.utils.loading import UnifiedIndex
+
 from ..core.models import MockModel, ScoreMockModel
 from ..mocks import MockSearchResult
-from .search_indexes import SimpleMockSearchIndex, SimpleMockScoreIndex
+from .search_indexes import SimpleMockScoreIndex, SimpleMockSearchIndex
 
 
 class SimpleSearchBackendTestCase(TestCase):
@@ -97,6 +99,7 @@ class SimpleSearchBackendTestCase(TestCase):
         self.assertEqual(self.backend.search(u'42')['results'][0].score, 0)
 
 
+@override_settings(DEBUG=True)
 class LiveSimpleSearchQuerySetTestCase(TestCase):
     fixtures = ['bulk_data.json']
 
@@ -104,8 +107,6 @@ class LiveSimpleSearchQuerySetTestCase(TestCase):
         super(LiveSimpleSearchQuerySetTestCase, self).setUp()
 
         # Stow.
-        self.old_debug = settings.DEBUG
-        settings.DEBUG = True
         self.old_ui = connections['simple'].get_unified_index()
         self.ui = UnifiedIndex()
         self.smmi = SimpleMockSearchIndex()
@@ -118,7 +119,6 @@ class LiveSimpleSearchQuerySetTestCase(TestCase):
     def tearDown(self):
         # Restore.
         connections['simple']._index = self.old_ui
-        settings.DEBUG = self.old_debug
         super(LiveSimpleSearchQuerySetTestCase, self).tearDown()
 
     def test_general_queries(self):

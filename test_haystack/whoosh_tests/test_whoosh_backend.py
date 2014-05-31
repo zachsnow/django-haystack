@@ -5,19 +5,20 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.test import TestCase
+from django.test.utils import override_settings
 from django.utils import unittest
 from django.utils.datetime_safe import date, datetime
-from whoosh.fields import BOOLEAN, DATETIME, KEYWORD, NUMERIC, TEXT
-from whoosh.qparser import QueryParser
-
-from ..core.models import AFourthMockModel, AnotherMockModel, MockModel
-from ..mocks import MockSearchResult
 from haystack import connections, indexes, reset_search_queries
 from haystack.exceptions import SearchBackendError
 from haystack.inputs import AutoQuery
 from haystack.models import SearchResult
 from haystack.query import SearchQuerySet, SQ
 from haystack.utils.loading import UnifiedIndex
+from whoosh.fields import BOOLEAN, DATETIME, KEYWORD, NUMERIC, TEXT
+from whoosh.qparser import QueryParser
+
+from ..core.models import AFourthMockModel, AnotherMockModel, MockModel
+from ..mocks import MockSearchResult
 
 
 class WhooshMockSearchIndex(indexes.SearchIndex, indexes.Indexable):
@@ -559,33 +560,30 @@ class LiveWhooshSearchQueryTestCase(TestCase):
         self.assertEqual(len(connections['whoosh'].queries), 0)
 
         # Stow.
-        old_debug = settings.DEBUG
-        settings.DEBUG = False
 
-        len(self.sq.get_results())
-        self.assertEqual(len(connections['whoosh'].queries), 0)
+        with self.settings(DEBUG=False):
+            len(self.sq.get_results())
+            self.assertEqual(len(connections['whoosh'].queries), 0)
 
-        settings.DEBUG = True
-        # Redefine it to clear out the cached results.
-        self.sq = connections['whoosh'].get_query()
-        self.sq.add_filter(SQ(name='bar'))
-        len(self.sq.get_results())
-        self.assertEqual(len(connections['whoosh'].queries), 1)
-        self.assertEqual(connections['whoosh'].queries[0]['query_string'], 'name:(bar)')
+        with self.settings(DEBUG=True):
+            # Redefine it to clear out the cached results.
+            self.sq = connections['whoosh'].get_query()
+            self.sq.add_filter(SQ(name='bar'))
+            len(self.sq.get_results())
+            self.assertEqual(len(connections['whoosh'].queries), 1)
+            self.assertEqual(connections['whoosh'].queries[0]['query_string'], 'name:(bar)')
 
-        # And again, for good measure.
-        self.sq = connections['whoosh'].get_query()
-        self.sq.add_filter(SQ(name='baz'))
-        self.sq.add_filter(SQ(text='foo'))
-        len(self.sq.get_results())
-        self.assertEqual(len(connections['whoosh'].queries), 2)
-        self.assertEqual(connections['whoosh'].queries[0]['query_string'], 'name:(bar)')
-        self.assertEqual(connections['whoosh'].queries[1]['query_string'], u'(name:(baz) AND text:(foo))')
-
-        # Restore.
-        settings.DEBUG = old_debug
+            # And again, for good measure.
+            self.sq = connections['whoosh'].get_query()
+            self.sq.add_filter(SQ(name='baz'))
+            self.sq.add_filter(SQ(text='foo'))
+            len(self.sq.get_results())
+            self.assertEqual(len(connections['whoosh'].queries), 2)
+            self.assertEqual(connections['whoosh'].queries[0]['query_string'], 'name:(bar)')
+            self.assertEqual(connections['whoosh'].queries[1]['query_string'], u'(name:(baz) AND text:(foo))')
 
 
+@override_settings(DEBUG=True)
 class LiveWhooshSearchQuerySetTestCase(TestCase):
     def setUp(self):
         super(LiveWhooshSearchQuerySetTestCase, self).setUp()
@@ -601,10 +599,6 @@ class LiveWhooshSearchQuerySetTestCase(TestCase):
         self.ui.build(indexes=[self.wmmi])
         self.sb = connections['whoosh'].get_backend()
         connections['whoosh']._index = self.ui
-
-        # Stow.
-        self.old_debug = settings.DEBUG
-        settings.DEBUG = True
 
         self.sb.setup()
         self.raw_whoosh = self.sb.index
@@ -912,6 +906,7 @@ class LiveWhooshMoreLikeThisTestCase(TestCase):
         self.assertTrue(isinstance(self.sqs.result_class(MockSearchResult).more_like_this(MockModel.objects.get(pk=21))[0], MockSearchResult))
 
 
+@override_settings(DEBUG=True)
 class LiveWhooshAutocompleteTestCase(TestCase):
     fixtures = ['bulk_data.json']
 
@@ -932,8 +927,6 @@ class LiveWhooshAutocompleteTestCase(TestCase):
 
         # Stow.
         import haystack
-        self.old_debug = settings.DEBUG
-        settings.DEBUG = True
 
         self.sb.setup()
         self.sqs = SearchQuerySet('whoosh')
@@ -949,7 +942,6 @@ class LiveWhooshAutocompleteTestCase(TestCase):
 
         settings.HAYSTACK_CONNECTIONS['whoosh']['PATH'] = self.old_whoosh_path
         connections['whoosh']._index = self.old_ui
-        settings.DEBUG = self.old_debug
         super(LiveWhooshAutocompleteTestCase, self).tearDown()
 
     def test_autocomplete(self):
@@ -1007,6 +999,7 @@ class WhooshRoundTripSearchIndex(indexes.SearchIndex, indexes.Indexable):
         return prepped
 
 
+@override_settings(DEBUG=True)
 class LiveWhooshRoundTripTestCase(TestCase):
     def setUp(self):
         super(LiveWhooshRoundTripTestCase, self).setUp()
@@ -1022,9 +1015,6 @@ class LiveWhooshRoundTripTestCase(TestCase):
         self.ui.build(indexes=[self.wrtsi])
         self.sb = connections['whoosh'].get_backend()
         connections['whoosh']._index = self.ui
-
-        self.old_debug = settings.DEBUG
-        settings.DEBUG = True
 
         self.sb.setup()
         self.raw_whoosh = self.sb.index
@@ -1046,7 +1036,6 @@ class LiveWhooshRoundTripTestCase(TestCase):
             shutil.rmtree(settings.HAYSTACK_CONNECTIONS['whoosh']['PATH'])
 
         settings.HAYSTACK_CONNECTIONS['whoosh']['PATH'] = self.old_whoosh_path
-        settings.DEBUG = self.old_debug
         super(LiveWhooshRoundTripTestCase, self).tearDown()
 
     def test_round_trip(self):
@@ -1075,6 +1064,7 @@ class LiveWhooshRoundTripTestCase(TestCase):
         self.assertEqual(results.count(), 1)
 
 
+@override_settings(DEBUG=True)
 class LiveWhooshRamStorageTestCase(TestCase):
     def setUp(self):
         super(LiveWhooshRamStorageTestCase, self).setUp()
@@ -1092,8 +1082,6 @@ class LiveWhooshRamStorageTestCase(TestCase):
 
         # Stow.
         import haystack
-        self.old_debug = settings.DEBUG
-        settings.DEBUG = True
 
         self.sb.setup()
         self.raw_whoosh = self.sb.index
@@ -1114,7 +1102,6 @@ class LiveWhooshRamStorageTestCase(TestCase):
 
         settings.HAYSTACK_CONNECTIONS['whoosh']['STORAGE'] = self.old_whoosh_storage
         connections['whoosh']._index = self.old_ui
-        settings.DEBUG = self.old_debug
         super(LiveWhooshRamStorageTestCase, self).tearDown()
 
     def test_ram_storage(self):

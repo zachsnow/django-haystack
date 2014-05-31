@@ -1,19 +1,30 @@
 # -*- coding: utf-8 -*-
 import datetime
+
 from django.conf import settings
 from django.test import TestCase
-from haystack import connections, connection_router, reset_search_queries
-from haystack.backends import SQ, BaseSearchQuery
+from django.test.utils import override_settings
+from django.utils.unittest import skipUnless
+
+from haystack import (connection_router, connections, indexes,
+                      reset_search_queries)
+from haystack.backends import BaseSearchQuery, SQ
 from haystack.exceptions import FacetingError
-from haystack import indexes
 from haystack.models import SearchResult
-from haystack.query import (SearchQuerySet, EmptySearchQuerySet,
-                            ValuesSearchQuerySet, ValuesListSearchQuerySet)
+from haystack.query import (EmptySearchQuerySet, SearchQuerySet,
+                            ValuesListSearchQuerySet, ValuesSearchQuerySet)
 from haystack.utils.loading import UnifiedIndex
-from test_haystack.core.models import MockModel, AnotherMockModel, CharPKMockModel, AFifthMockModel
-from .mocks import MockSearchQuery, MockSearchBackend, CharPKMockSearchBackend, MixedMockSearchBackend, ReadQuerySetMockSearchBackend, MOCK_SEARCH_RESULTS
-from .test_indexes import ReadQuerySetTestSearchIndex, GhettoAFifthMockModelSearchIndex, TextReadQuerySetTestSearchIndex
-from .test_views import BasicMockModelSearchIndex, BasicAnotherMockModelSearchIndex
+from test_haystack.core.models import (AFifthMockModel, AnotherMockModel,
+                                       CharPKMockModel, MockModel)
+
+from .mocks import (CharPKMockSearchBackend, MixedMockSearchBackend,
+                    MOCK_SEARCH_RESULTS, MockSearchBackend, MockSearchQuery,
+                    ReadQuerySetMockSearchBackend)
+from .test_indexes import (GhettoAFifthMockModelSearchIndex,
+                           ReadQuerySetTestSearchIndex,
+                           TextReadQuerySetTestSearchIndex)
+from .test_views import (BasicAnotherMockModelSearchIndex,
+                         BasicMockModelSearchIndex)
 
 test_pickling = True
 
@@ -285,30 +296,29 @@ class BaseSearchQueryTestCase(TestCase):
         backend = connections['default'].get_backend()
         backend.clear()
         self.bmmsi.update()
-        old_debug = settings.DEBUG
-        settings.DEBUG = False
 
-        msq = connections['default'].get_query()
-        self.assertEqual(len(msq.get_results()), 23)
-        self.assertEqual(len(connections['default'].queries), 0)
 
-        settings.DEBUG = True
-        # Redefine it to clear out the cached results.
-        msq2 = connections['default'].get_query()
-        self.assertEqual(len(msq2.get_results()), 23)
-        self.assertEqual(len(connections['default'].queries), 1)
-        self.assertEqual(connections['default'].queries[0]['query_string'], '')
+        with self.settings(DEBUG=False):
+            msq = connections['default'].get_query()
+            self.assertEqual(len(msq.get_results()), 23)
+            self.assertEqual(len(connections['default'].queries), 0)
 
-        msq3 = connections['default'].get_query()
-        msq3.add_filter(SQ(foo='bar'))
-        len(msq3.get_results())
-        self.assertEqual(len(connections['default'].queries), 2)
-        self.assertEqual(connections['default'].queries[0]['query_string'], '')
-        self.assertEqual(connections['default'].queries[1]['query_string'], '')
+        with self.settings(DEBUG=True):
+            # Redefine it to clear out the cached results.
+            msq2 = connections['default'].get_query()
+            self.assertEqual(len(msq2.get_results()), 23)
+            self.assertEqual(len(connections['default'].queries), 1)
+            self.assertEqual(connections['default'].queries[0]['query_string'], '')
+
+            msq3 = connections['default'].get_query()
+            msq3.add_filter(SQ(foo='bar'))
+            len(msq3.get_results())
+            self.assertEqual(len(connections['default'].queries), 2)
+            self.assertEqual(connections['default'].queries[0]['query_string'], '')
+            self.assertEqual(connections['default'].queries[1]['query_string'], '')
 
         # Restore.
         connections['default']._index = self.old_unified_index
-        settings.DEBUG = old_debug
 
 
 class CharPKMockModelSearchIndex(indexes.SearchIndex, indexes.Indexable):
@@ -318,6 +328,7 @@ class CharPKMockModelSearchIndex(indexes.SearchIndex, indexes.Indexable):
         return CharPKMockModel
 
 
+@override_settings(DEBUG=True)
 class SearchQuerySetTestCase(TestCase):
     fixtures = ['bulk_data.json']
 
@@ -340,15 +351,11 @@ class SearchQuerySetTestCase(TestCase):
         self.msqs = SearchQuerySet()
 
         # Stow.
-        self.old_debug = settings.DEBUG
-        settings.DEBUG = True
-
         reset_search_queries()
 
     def tearDown(self):
         # Restore.
         connections['default']._index = self.old_unified_index
-        settings.DEBUG = self.old_debug
         super(SearchQuerySetTestCase, self).tearDown()
 
     def test_len(self):
@@ -845,45 +852,42 @@ class EmptySearchQuerySetTestCase(TestCase):
         self.assertRaises(TypeError, lambda: self.esqs['count'])
 
 
-if test_pickling:
-    class PickleSearchQuerySetTestCase(TestCase):
-        def setUp(self):
-            super(PickleSearchQuerySetTestCase, self).setUp()
-            # Stow.
-            self.old_unified_index = connections['default']._index
-            self.ui = UnifiedIndex()
-            self.bmmsi = BasicMockModelSearchIndex()
-            self.cpkmmsi = CharPKMockModelSearchIndex()
-            self.ui.build(indexes=[self.bmmsi, self.cpkmmsi])
-            connections['default']._index = self.ui
+@skipUnless(test_pickling, 'Skipping pickling tests')
+@override_settings(DEBUG=True)
+class PickleSearchQuerySetTestCase(TestCase):
+    def setUp(self):
+        super(PickleSearchQuerySetTestCase, self).setUp()
+        # Stow.
+        self.old_unified_index = connections['default']._index
+        self.ui = UnifiedIndex()
+        self.bmmsi = BasicMockModelSearchIndex()
+        self.cpkmmsi = CharPKMockModelSearchIndex()
+        self.ui.build(indexes=[self.bmmsi, self.cpkmmsi])
+        connections['default']._index = self.ui
 
-            # Update the "index".
-            backend = connections['default'].get_backend()
-            backend.clear()
-            backend.update(self.bmmsi, MockModel.objects.all())
+        # Update the "index".
+        backend = connections['default'].get_backend()
+        backend.clear()
+        backend.update(self.bmmsi, MockModel.objects.all())
 
-            self.msqs = SearchQuerySet()
+        self.msqs = SearchQuerySet()
 
-            # Stow.
-            self.old_debug = settings.DEBUG
-            settings.DEBUG = True
+        # Stow.
+        reset_search_queries()
 
-            reset_search_queries()
+    def tearDown(self):
+        # Restore.
+        connections['default']._index = self.old_unified_index
+        super(PickleSearchQuerySetTestCase, self).tearDown()
 
-        def tearDown(self):
-            # Restore.
-            connections['default']._index = self.old_unified_index
-            settings.DEBUG = self.old_debug
-            super(PickleSearchQuerySetTestCase, self).tearDown()
+    def test_pickling(self):
+        results = self.msqs.all()
 
-        def test_pickling(self):
-            results = self.msqs.all()
+        for res in results:
+            # Make sure the cache is full.
+            pass
 
-            for res in results:
-                # Make sure the cache is full.
-                pass
-
-            in_a_pickle = pickle.dumps(results)
-            like_a_cuke = pickle.loads(in_a_pickle)
-            self.assertEqual(len(like_a_cuke), len(results))
-            self.assertEqual(like_a_cuke[0].id, results[0].id)
+        in_a_pickle = pickle.dumps(results)
+        like_a_cuke = pickle.loads(in_a_pickle)
+        self.assertEqual(len(like_a_cuke), len(results))
+        self.assertEqual(like_a_cuke[0].id, results[0].id)

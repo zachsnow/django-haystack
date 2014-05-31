@@ -9,16 +9,17 @@ from decimal import Decimal
 import pysolr
 from django.conf import settings
 from django.test import TestCase
+from django.test.utils import override_settings
 from django.utils.unittest import skipIf
-from mock import patch
-
 from haystack import connections, indexes, reset_search_queries
 from haystack.inputs import AltParser, AutoQuery, Raw
 from haystack.models import SearchResult
 from haystack.query import RelatedSearchQuerySet, SearchQuerySet, SQ
 from haystack.utils.loading import UnifiedIndex
-from ..core.models import (MockModel, AnotherMockModel,
-                         AFourthMockModel, ASixthMockModel)
+from mock import patch
+
+from ..core.models import (AFourthMockModel, AnotherMockModel, ASixthMockModel,
+                           MockModel)
 from ..mocks import MockSearchResult
 
 test_pickling = True
@@ -682,51 +683,50 @@ class LiveSolrSearchQueryTestCase(TestCase):
         self.assertEqual(self.sq.get_spelling_suggestion('indexy'), u'(index)')
 
     def test_log_query(self):
-        from django.conf import settings
         reset_search_queries()
         self.assertEqual(len(connections['solr'].queries), 0)
 
-        # Stow.
-        old_debug = settings.DEBUG
-        settings.DEBUG = False
+        with self.settings(DEBUG=False):
+            len(self.sq.get_results())
+            self.assertEqual(len(connections['solr'].queries), 0)
 
-        len(self.sq.get_results())
-        self.assertEqual(len(connections['solr'].queries), 0)
+        with self.settings(DEBUG=True):
+            # Redefine it to clear out the cached results.
+            self.sq = connections['solr'].get_query()
+            self.sq.add_filter(SQ(name='bar'))
+            len(self.sq.get_results())
+            self.assertEqual(len(connections['solr'].queries), 1)
+            self.assertEqual(connections['solr'].queries[0]['query_string'], 'name:(bar)')
 
-        settings.DEBUG = True
-        # Redefine it to clear out the cached results.
-        self.sq = connections['solr'].get_query()
-        self.sq.add_filter(SQ(name='bar'))
-        len(self.sq.get_results())
-        self.assertEqual(len(connections['solr'].queries), 1)
-        self.assertEqual(connections['solr'].queries[0]['query_string'], 'name:(bar)')
-
-        # And again, for good measure.
-        self.sq = connections['solr'].get_query()
-        self.sq.add_filter(SQ(name='bar'))
-        self.sq.add_filter(SQ(text='moof'))
-        len(self.sq.get_results())
-        self.assertEqual(len(connections['solr'].queries), 2)
-        self.assertEqual(connections['solr'].queries[0]['query_string'], 'name:(bar)')
-        self.assertEqual(connections['solr'].queries[1]['query_string'], u'(name:(bar) AND text:(moof))')
-
-        # Restore.
-        settings.DEBUG = old_debug
+            # And again, for good measure.
+            self.sq = connections['solr'].get_query()
+            self.sq.add_filter(SQ(name='bar'))
+            self.sq.add_filter(SQ(text='moof'))
+            len(self.sq.get_results())
+            self.assertEqual(len(connections['solr'].queries), 2)
+            self.assertEqual(connections['solr'].queries[0]['query_string'], 'name:(bar)')
+            self.assertEqual(connections['solr'].queries[1]['query_string'], u'(name:(bar) AND text:(moof))')
 
 
-lssqstc_all_loaded = None
-
-
+@override_settings(DEBUG=True)
 class LiveSolrSearchQuerySetTestCase(TestCase):
     """Used to test actual implementation details of the SearchQuerySet."""
     fixtures = ['bulk_data.json']
+
+    @classmethod
+    def setUpClass(cls):
+        super(LiveSolrSearchQuerySetTestCase, cls).setUpClass()
+        cls._index_updated = False
+
+    @classmethod
+    def tearDownClass(cls):
+        del cls._index_updated
+        super(LiveSolrSearchQuerySetTestCase, cls).tearDownClass()
 
     def setUp(self):
         super(LiveSolrSearchQuerySetTestCase, self).setUp()
 
         # Stow.
-        self.old_debug = settings.DEBUG
-        settings.DEBUG = True
         self.old_ui = connections['solr'].get_unified_index()
         self.ui = UnifiedIndex()
         self.smmi = SolrMockSearchIndex()
@@ -736,12 +736,8 @@ class LiveSolrSearchQuerySetTestCase(TestCase):
         self.sqs = SearchQuerySet('solr')
         self.rsqs = RelatedSearchQuerySet('solr')
 
-        # Ugly but not constantly reindexing saves us almost 50% runtime.
-        global lssqstc_all_loaded
-
-        if lssqstc_all_loaded is None:
-            print('Reloading data...')
-            lssqstc_all_loaded = True
+        if not self._index_updated:
+            std_logging.info('Reindexing test data')
 
             # Wipe it clean.
             clear_solr_index()
@@ -749,10 +745,11 @@ class LiveSolrSearchQuerySetTestCase(TestCase):
             # Force indexing of the content.
             self.smmi.update('solr')
 
+            self._index_updated = True
+
     def tearDown(self):
         # Restore.
         connections['solr']._index = self.old_ui
-        settings.DEBUG = self.old_debug
         super(LiveSolrSearchQuerySetTestCase, self).tearDown()
 
     def test_load_all(self):

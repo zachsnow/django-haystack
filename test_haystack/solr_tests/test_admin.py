@@ -1,12 +1,15 @@
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.test import TestCase
+from django.test.utils import override_settings
 from haystack import connections, reset_search_queries
 from haystack.utils.loading import UnifiedIndex
+
 from ..core.models import MockModel
-from .test_solr_backend import SolrMockModelSearchIndex, clear_solr_index
+from .test_solr_backend import clear_solr_index, SolrMockModelSearchIndex
 
 
+@override_settings(DEBUG=True)
 class SearchModelAdminTestCase(TestCase):
     fixtures = ['bulk_data.json']
 
@@ -15,8 +18,6 @@ class SearchModelAdminTestCase(TestCase):
 
         # With the models setup, you get the proper bits.
         # Stow.
-        self.old_debug = settings.DEBUG
-        settings.DEBUG = True
         self.old_ui = connections['solr'].get_unified_index()
         self.ui = UnifiedIndex()
         smmsi = SolrMockModelSearchIndex()
@@ -38,7 +39,6 @@ class SearchModelAdminTestCase(TestCase):
     def tearDown(self):
         # Restore.
         connections['solr']._index = self.old_ui
-        settings.DEBUG = self.old_debug
         super(SearchModelAdminTestCase, self).tearDown()
 
     def test_usage(self):

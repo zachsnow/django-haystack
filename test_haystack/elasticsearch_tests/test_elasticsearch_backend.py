@@ -1,22 +1,23 @@
 # -*- coding: utf-8 -*-
 import datetime
-from decimal import Decimal
 import logging as std_logging
 import operator
+from decimal import Decimal
 
 import elasticsearch
 from django.conf import settings
 from django.test import TestCase
+from django.test.utils import override_settings
 from django.utils import unittest
-from haystack import connections, reset_search_queries
-from haystack import indexes
+from haystack import connections, indexes, reset_search_queries
 from haystack.inputs import AutoQuery
 from haystack.models import SearchResult
-from haystack.query import SearchQuerySet, RelatedSearchQuerySet, SQ
+from haystack.query import RelatedSearchQuerySet, SearchQuerySet, SQ
 from haystack.utils import log as logging
 from haystack.utils.loading import UnifiedIndex
-from ..core.models import (MockModel, AnotherMockModel,
-                         AFourthMockModel, ASixthMockModel)
+
+from ..core.models import (AFourthMockModel, AnotherMockModel, ASixthMockModel,
+                           MockModel)
 from ..mocks import MockSearchResult
 
 test_pickling = True
@@ -590,37 +591,35 @@ class LiveElasticsearchSearchQueryTestCase(TestCase):
         reset_search_queries()
         self.assertEqual(len(connections['elasticsearch'].queries), 0)
 
-        # Stow.
-        old_debug = settings.DEBUG
-        settings.DEBUG = False
+        with self.settings(DEBUG=False):
+            len(self.sq.get_results())
+            self.assertEqual(len(connections['elasticsearch'].queries), 0)
 
-        len(self.sq.get_results())
-        self.assertEqual(len(connections['elasticsearch'].queries), 0)
+        with self.settings(DEBUG=True):
+            # Redefine it to clear out the cached results.
+            self.sq = connections['elasticsearch'].query(using='elasticsearch')
+            self.sq.add_filter(SQ(name='bar'))
+            len(self.sq.get_results())
+            self.assertEqual(len(connections['elasticsearch'].queries), 1)
+            self.assertEqual(connections['elasticsearch'].queries[0]['query_string'],
+                             'name:(bar)')
 
-        settings.DEBUG = True
-        # Redefine it to clear out the cached results.
-        self.sq = connections['elasticsearch'].query(using='elasticsearch')
-        self.sq.add_filter(SQ(name='bar'))
-        len(self.sq.get_results())
-        self.assertEqual(len(connections['elasticsearch'].queries), 1)
-        self.assertEqual(connections['elasticsearch'].queries[0]['query_string'], 'name:(bar)')
-
-        # And again, for good measure.
-        self.sq = connections['elasticsearch'].query('elasticsearch')
-        self.sq.add_filter(SQ(name='bar'))
-        self.sq.add_filter(SQ(text='moof'))
-        len(self.sq.get_results())
-        self.assertEqual(len(connections['elasticsearch'].queries), 2)
-        self.assertEqual(connections['elasticsearch'].queries[0]['query_string'], 'name:(bar)')
-        self.assertEqual(connections['elasticsearch'].queries[1]['query_string'], u'(name:(bar) AND text:(moof))')
-
-        # Restore.
-        settings.DEBUG = old_debug
+            # And again, for good measure.
+            self.sq = connections['elasticsearch'].query('elasticsearch')
+            self.sq.add_filter(SQ(name='bar'))
+            self.sq.add_filter(SQ(text='moof'))
+            len(self.sq.get_results())
+            self.assertEqual(len(connections['elasticsearch'].queries), 2)
+            self.assertEqual(connections['elasticsearch'].queries[0]['query_string'],
+                             'name:(bar)')
+            self.assertEqual(connections['elasticsearch'].queries[1]['query_string'],
+                             u'(name:(bar) AND text:(moof))')
 
 
 lssqstc_all_loaded = None
 
 
+@override_settings(DEBUG=True)
 class LiveElasticsearchSearchQuerySetTestCase(TestCase):
     """Used to test actual implementation details of the SearchQuerySet."""
     fixtures = ['bulk_data.json']
@@ -629,8 +628,6 @@ class LiveElasticsearchSearchQuerySetTestCase(TestCase):
         super(LiveElasticsearchSearchQuerySetTestCase, self).setUp()
 
         # Stow.
-        self.old_debug = settings.DEBUG
-        settings.DEBUG = True
         self.old_ui = connections['elasticsearch'].get_unified_index()
         self.ui = UnifiedIndex()
         self.smmi = ElasticsearchMockSearchIndex()
@@ -655,7 +652,6 @@ class LiveElasticsearchSearchQuerySetTestCase(TestCase):
     def tearDown(self):
         # Restore.
         connections['elasticsearch']._index = self.old_ui
-        settings.DEBUG = self.old_debug
         super(LiveElasticsearchSearchQuerySetTestCase, self).tearDown()
 
     def test_load_all(self):
@@ -946,6 +942,7 @@ class LiveElasticsearchSearchQuerySetTestCase(TestCase):
         self.assertTrue(isinstance(sqs[0], SearchResult))
 
 
+@override_settings(DEBUG=True)
 class LiveElasticsearchSpellingTestCase(TestCase):
     """Used to test actual implementation details of the SearchQuerySet."""
     fixtures = ['bulk_data.json']
@@ -954,8 +951,6 @@ class LiveElasticsearchSpellingTestCase(TestCase):
         super(LiveElasticsearchSpellingTestCase, self).setUp()
 
         # Stow.
-        self.old_debug = settings.DEBUG
-        settings.DEBUG = True
         self.old_ui = connections['elasticsearch'].get_unified_index()
         self.ui = UnifiedIndex()
         self.smmi = ElasticsearchMockSpellingIndex()
@@ -976,7 +971,6 @@ class LiveElasticsearchSpellingTestCase(TestCase):
     def tearDown(self):
         # Restore.
         connections['elasticsearch']._index = self.old_ui
-        settings.DEBUG = self.old_debug
         super(LiveElasticsearchSpellingTestCase, self).tearDown()
 
     def test_spelling(self):
