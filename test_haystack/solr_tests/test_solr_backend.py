@@ -10,7 +10,7 @@ import pysolr
 from django.conf import settings
 from django.test import TestCase
 from django.test.utils import override_settings
-from django.utils.unittest import skipIf
+from django.utils.unittest import skipIf, skipUnless
 from haystack import connections, indexes, reset_search_queries
 from haystack.inputs import AltParser, AutoQuery, Raw
 from haystack.models import SearchResult
@@ -1230,45 +1230,45 @@ class LiveSolrRoundTripTestCase(TestCase):
         self.assertEqual(result.sites, [3, 5, 1])
 
 
-if test_pickling:
-    class LiveSolrPickleTestCase(TestCase):
-        fixtures = ['bulk_data.json']
+@skipUnless(test_pickling, 'Skipping pickling tests')
+class LiveSolrPickleTestCase(TestCase):
+    fixtures = ['bulk_data.json']
 
-        def setUp(self):
-            super(LiveSolrPickleTestCase, self).setUp()
+    def setUp(self):
+        super(LiveSolrPickleTestCase, self).setUp()
 
-            # Wipe it clean.
-            clear_solr_index()
+        # Wipe it clean.
+        clear_solr_index()
 
-            # Stow.
-            self.old_ui = connections['solr'].get_unified_index()
-            self.ui = UnifiedIndex()
-            self.smmi = SolrMockModelSearchIndex()
-            self.sammi = SolrAnotherMockModelSearchIndex()
-            self.ui.build(indexes=[self.smmi, self.sammi])
-            connections['solr']._index = self.ui
+        # Stow.
+        self.old_ui = connections['solr'].get_unified_index()
+        self.ui = UnifiedIndex()
+        self.smmi = SolrMockModelSearchIndex()
+        self.sammi = SolrAnotherMockModelSearchIndex()
+        self.ui.build(indexes=[self.smmi, self.sammi])
+        connections['solr']._index = self.ui
 
-            self.sqs = SearchQuerySet('solr')
+        self.sqs = SearchQuerySet('solr')
 
-            self.smmi.update('solr')
-            self.sammi.update('solr')
+        self.smmi.update('solr')
+        self.sammi.update('solr')
 
-        def tearDown(self):
-            # Restore.
-            connections['solr']._index = self.old_ui
-            super(LiveSolrPickleTestCase, self).tearDown()
+    def tearDown(self):
+        # Restore.
+        connections['solr']._index = self.old_ui
+        super(LiveSolrPickleTestCase, self).tearDown()
 
-        def test_pickling(self):
-            results = self.sqs.all()
+    def test_pickling(self):
+        results = self.sqs.all()
 
-            for res in results:
-                # Make sure the cache is full.
-                pass
+        for res in results:
+            # Make sure the cache is full.
+            pass
 
-            in_a_pickle = pickle.dumps(results)
-            like_a_cuke = pickle.loads(in_a_pickle)
-            self.assertEqual(len(like_a_cuke), len(results))
-            self.assertEqual(like_a_cuke[0].id, results[0].id)
+        in_a_pickle = pickle.dumps(results)
+        like_a_cuke = pickle.loads(in_a_pickle)
+        self.assertEqual(len(like_a_cuke), len(results))
+        self.assertEqual(like_a_cuke[0].id, results[0].id)
 
 
 class SolrBoostBackendTestCase(TestCase):

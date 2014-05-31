@@ -1171,45 +1171,45 @@ class LiveElasticsearchRoundTripTestCase(TestCase):
         self.assertEqual(result.sites, [3, 5, 1])
 
 
-if test_pickling:
-    class LiveElasticsearchPickleTestCase(TestCase):
-        fixtures = ['bulk_data.json']
+@unittest.skipUnless(test_pickling, 'Skipping pickling tests')
+class LiveElasticsearchPickleTestCase(TestCase):
+    fixtures = ['bulk_data.json']
 
-        def setUp(self):
-            super(LiveElasticsearchPickleTestCase, self).setUp()
+    def setUp(self):
+        super(LiveElasticsearchPickleTestCase, self).setUp()
 
-            # Wipe it clean.
-            clear_elasticsearch_index()
+        # Wipe it clean.
+        clear_elasticsearch_index()
 
-            # Stow.
-            self.old_ui = connections['elasticsearch'].get_unified_index()
-            self.ui = UnifiedIndex()
-            self.smmi = ElasticsearchMockModelSearchIndex()
-            self.sammi = ElasticsearchAnotherMockModelSearchIndex()
-            self.ui.build(indexes=[self.smmi, self.sammi])
-            connections['elasticsearch']._index = self.ui
+        # Stow.
+        self.old_ui = connections['elasticsearch'].get_unified_index()
+        self.ui = UnifiedIndex()
+        self.smmi = ElasticsearchMockModelSearchIndex()
+        self.sammi = ElasticsearchAnotherMockModelSearchIndex()
+        self.ui.build(indexes=[self.smmi, self.sammi])
+        connections['elasticsearch']._index = self.ui
 
-            self.sqs = SearchQuerySet('elasticsearch')
+        self.sqs = SearchQuerySet('elasticsearch')
 
-            self.smmi.update(using='elasticsearch')
-            self.sammi.update(using='elasticsearch')
+        self.smmi.update(using='elasticsearch')
+        self.sammi.update(using='elasticsearch')
 
-        def tearDown(self):
-            # Restore.
-            connections['elasticsearch']._index = self.old_ui
-            super(LiveElasticsearchPickleTestCase, self).tearDown()
+    def tearDown(self):
+        # Restore.
+        connections['elasticsearch']._index = self.old_ui
+        super(LiveElasticsearchPickleTestCase, self).tearDown()
 
-        def test_pickling(self):
-            results = self.sqs.all()
+    def test_pickling(self):
+        results = self.sqs.all()
 
-            for res in results:
-                # Make sure the cache is full.
-                pass
+        for res in results:
+            # Make sure the cache is full.
+            pass
 
-            in_a_pickle = pickle.dumps(results)
-            like_a_cuke = pickle.loads(in_a_pickle)
-            self.assertEqual(len(like_a_cuke), len(results))
-            self.assertEqual(like_a_cuke[0].id, results[0].id)
+        in_a_pickle = pickle.dumps(results)
+        like_a_cuke = pickle.loads(in_a_pickle)
+        self.assertEqual(len(like_a_cuke), len(results))
+        self.assertEqual(like_a_cuke[0].id, results[0].id)
 
 
 class ElasticsearchBoostBackendTestCase(TestCase):
