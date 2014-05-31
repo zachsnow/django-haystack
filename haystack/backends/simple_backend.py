@@ -74,13 +74,14 @@ class SimpleSearchBackend(BaseSearchBackend):
 
                             queries.append(Q(**{'%s__icontains' % field.name: term}))
 
-                        qs = model.objects.filter(six.moves.reduce(lambda x, y: x|y, queries))
+                        qs = model.objects.filter(six.moves.reduce(lambda x, y: x | y, queries))
 
                 hits += len(qs)
 
                 for match in qs:
                     match.__dict__.pop('score', None)
-                    result = result_class(match._meta.app_label, match._meta.module_name, match.pk, 0, **match.__dict__)
+                    result = result_class(match._meta.app_label, match._meta.module_name, match.pk, 0,
+                                          **match.__dict__)
                     # For efficiency.
                     result._model = match.__class__
                     result._object = match
