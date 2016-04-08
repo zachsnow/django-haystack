@@ -85,10 +85,10 @@ class SearchField(object):
             current_object = obj
 
             for attr in attrs:
-                if not hasattr(current_object, attr):
+                attr_object = getattr(current_object, attr, unknown)
+                if attr_object is unknown:
                     raise SearchFieldError("The model '%s' does not have a model_attr '%s'." % (repr(current_object), attr))
-
-                current_object = getattr(current_object, attr, None)
+                current_object = attr_object
 
                 if current_object is None:
                     if self.has_default():
